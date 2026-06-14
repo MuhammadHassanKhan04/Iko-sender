@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BPSNE4B1FW"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-BPSNE4B1FW');
+</script>
+<script>
+  window.onerror = function(message, source, lineno, colno, error) {
+    var div = document.createElement('div');
+    div.style.position = 'fixed';
+    div.style.top = '0';
+    div.style.left = '0';
+    div.style.width = '100%';
+    div.style.height = '100%';
+    div.style.backgroundColor = 'rgba(0,0,0,0.95)';
+    div.style.color = '#ff3333';
+    div.style.padding = '30px';
+    div.style.fontFamily = 'monospace';
+    div.style.zIndex = '999999';
+    div.style.overflow = 'auto';
+    div.style.boxSizing = 'border-box';
+    div.innerHTML = '<h1>Global JS Error Caught</h1>' +
+                    '<p><strong>Message:</strong> ' + message + '</p>' +
+                    '<p><strong>Source:</strong> ' + source + '</p>' +
+                    '<p><strong>Line:</strong> ' + lineno + ' | <strong>Col:</strong> ' + colno + '</p>' +
+                    '<pre style="color: #eee; background: #222; padding: 15px; border-radius: 8px; white-space: pre-wrap; word-break: break-all;">' + (error && error.stack || 'No stack trace') + '</pre>';
+    document.body.appendChild(div);
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function(event) {
+    var div = document.createElement('div');
+    div.style.position = 'fixed';
+    div.style.top = '0';
+    div.style.left = '0';
+    div.style.width = '100%';
+    div.style.height = '100%';
+    div.style.backgroundColor = 'rgba(0,0,0,0.95)';
+    div.style.color = '#ffaa00';
+    div.style.padding = '30px';
+    div.style.fontFamily = 'monospace';
+    div.style.zIndex = '999999';
+    div.style.overflow = 'auto';
+    div.style.boxSizing = 'border-box';
+    div.innerHTML = '<h1>Unhandled Promise Rejection</h1>' +
+                    '<p><strong>Reason:</strong> ' + event.reason + '</p>' +
+                    '<pre style="color: #eee; background: #222; padding: 15px; border-radius: 8px; white-space: pre-wrap; word-break: break-all;">' + (event.reason && event.reason.stack || 'No stack trace') + '</pre>';
+    document.body.appendChild(div);
+  });
+</script>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="https://img.icons8.com/isometric/50/filled-message.png" type="image/png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IkoSender - Professional Email Marketing Tool</title>
+  <meta name="description"
+    content="Send professional bulk emails to multiple recipients efficiently. Modern email marketing tool for businesses." />
+  <meta name="author" content="IkoSender" />
+
+  <meta property="og:title" content="IkoSender - Professional Email Marketing Tool" />
+  <meta property="og:description"
+    content="Send professional bulk emails to multiple recipients efficiently. Modern email marketing tool for businesses." />
+  <meta property="og:type" content="website" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@ikoteksolutions" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
