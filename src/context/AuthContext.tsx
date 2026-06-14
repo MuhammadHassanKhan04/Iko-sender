@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import {
   UserRecord,
   getUsers,
@@ -59,6 +60,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Initialize storage (seeds admin) + restore session on mount
   useEffect(() => {
     const initSession = async () => {
+      // Diagnostic check: verify if Supabase tables exist
+      const { error: dbError } = await supabase.from("users_db").select("id").limit(1);
+      if (dbError && dbError.message.includes("Could not find the table")) {
+        toast.error("Supabase Database Tables Are Missing! Please run the migrations in your Supabase SQL Editor.", {
+          duration: 15000,
+        });
+      }
+
       // Ensure default admin exists in storage
       await getUsers();
 
