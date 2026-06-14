@@ -54,9 +54,9 @@ const SubscriptionPage = () => {
   const [activeRequest, setActiveRequest] = useState<any>(null);
 
   // Fetch pending request from localStorage
-  const fetchActiveRequest = () => {
+  const fetchActiveRequest = async () => {
     if (!user?.email) return;
-    const all = getRequests();
+    const all = await getRequests();
     const pending = all.find(
       (r) => r.user_email.toLowerCase() === user.email.toLowerCase() && r.status === "pending"
     );
@@ -98,8 +98,8 @@ const SubscriptionPage = () => {
 
     setIsSubmitting(true);
     try {
-      // Save request to localStorage
-      addRequest({
+      // Save request to Supabase
+      await addRequest({
         user_email: user?.email ?? "",
         plan_name: selectedPlan.name,
         plan_price: selectedPlan.price,
@@ -110,15 +110,15 @@ const SubscriptionPage = () => {
         status: "pending",
       });
 
-      // Update user status to pending_subscription in localStorage
-      const record = getUserByEmail(user?.email ?? "");
+      // Update user status to pending_subscription in Supabase
+      const record = await getUserByEmail(user?.email ?? "");
       if (record) {
-        upsertUser({ ...record, status: "pending_subscription" });
+        await upsertUser({ ...record, status: "pending_subscription" });
       }
 
       toast.success("Payment details submitted! Team will review within 12 hours.");
       await refreshUserProfile();
-      fetchActiveRequest();
+      await fetchActiveRequest();
       setSelectedPlan(null);
       setTransactionId("");
       setSlipBase64(null);
@@ -133,7 +133,7 @@ const SubscriptionPage = () => {
   const handleRefreshStatus = async () => {
     setIsRefreshing(true);
     await refreshUserProfile();
-    fetchActiveRequest();
+    await fetchActiveRequest();
     setIsRefreshing(false);
     toast.success("Status refreshed.");
   };

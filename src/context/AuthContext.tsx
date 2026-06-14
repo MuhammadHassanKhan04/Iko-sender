@@ -58,32 +58,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Initialize storage (seeds admin) + restore session on mount
   useEffect(() => {
-    // Ensure default admin exists in storage
-    getUsers();
+    const initSession = async () => {
+      // Ensure default admin exists in storage
+      await getUsers();
 
-    const storedUser = localStorage.getItem("ikosender_user");
-    if (storedUser) {
-      try {
-        const parsed: User = JSON.parse(storedUser);
-        // Refresh from storage to get latest status/quota
-        const fresh = getUserByEmail(parsed.email);
-        if (fresh) {
-          const u = recordToUser(fresh);
-          setUser(u);
-          setIsAdmin(u.role === "admin");
-          localStorage.setItem("ikosender_user", JSON.stringify(u));
-        } else {
+      const storedUser = localStorage.getItem("ikosender_user");
+      if (storedUser) {
+        try {
+          const parsed: User = JSON.parse(storedUser);
+          // Refresh from storage to get latest status/quota
+          const fresh = await getUserByEmail(parsed.email);
+          if (fresh) {
+            const u = recordToUser(fresh);
+            setUser(u);
+            setIsAdmin(u.role === "admin");
+            localStorage.setItem("ikosender_user", JSON.stringify(u));
+          } else {
+            localStorage.removeItem("ikosender_user");
+          }
+        } catch {
           localStorage.removeItem("ikosender_user");
         }
-      } catch {
-        localStorage.removeItem("ikosender_user");
       }
-    }
+    };
+    initSession();
   }, []);
 
   const refreshUserProfile = async () => {
     if (!user?.email) return;
-    const fresh = getUserByEmail(user.email);
+    const fresh = await getUserByEmail(user.email);
     if (fresh) {
       const u = recordToUser(fresh);
       setUser(u);
@@ -94,7 +97,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ── Admin Login ──────────────────────────────────
   const loginAdmin = async (email: string, pass: string): Promise<boolean> => {
-    const record = getUserByEmail(email.trim());
+    const record = await getUserByEmail(email.trim());
     if (record && record.password === pass.trim() && record.role === "admin") {
       const u = recordToUser(record);
       setUser(u);
@@ -111,7 +114,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const loginUser = async (nameOrEmail: string, pass: string): Promise<boolean> => {
     const identifier = nameOrEmail.trim().toLowerCase();
     const cleanPass = pass.trim();
-    const allUsers = getUsers();
+    const allUsers = await getUsers();
     const record = allUsers.find(
       (u) =>
         (u.email.toLowerCase() === identifier || u.name.toLowerCase() === identifier) &&
@@ -134,7 +137,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // ── Sign Up ──────────────────────────────────────
   const signUpUser = async (name: string, email: string, pass: string): Promise<boolean> => {
     const cleanEmail = email.trim().toLowerCase();
-    const existing = getUserByEmail(cleanEmail);
+    const existing = await getUserByEmail(cleanEmail);
     if (existing) {
       toast.error("An account with this email already exists");
       return false;
@@ -153,7 +156,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       created_at: new Date().toISOString(),
     };
 
-    upsertUser(newRecord);
+    await upsertUser(newRecord);
 
     const u = recordToUser(newRecord);
     setUser(u);
@@ -174,11 +177,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ── Admin Tools ──────────────────────────────────
   const getAllUsers = async (): Promise<User[]> => {
-    return getUsers().map(recordToUser);
+    const usersList = await getUsers();
+    return usersList.map(recordToUser);
   };
 
   const addUser = async (name: string, email: string, pass: string): Promise<void> => {
-    const existing = getUserByEmail(email.trim());
+    const existing = await getUserByEmail(email.trim());
     if (existing) {
       toast.error("User with this email already exists");
       return;
@@ -195,12 +199,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       emails_sent: 0,
       created_at: new Date().toISOString(),
     };
-    upsertUser(newRecord);
+    await upsertUser(newRecord);
     toast.success("User added successfully");
   };
 
   const deleteUser = async (email: string): Promise<void> => {
-    deleteUserByEmail(email);
+    await deleteUserByEmail(email);
     toast.success("User deleted");
   };
 
@@ -210,7 +214,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     plan: string,
     email_limit: number
   ): Promise<void> => {
-    const record = getUserByEmail(email);
+    const record = await getUserByEmail(email);
     if (!record) {
       toast.error("User not found");
       return;
@@ -222,7 +226,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       email_limit,
       emails_sent: 0,
     };
-    upsertUser(updated);
+    await upsertUser(updated);
 
     // If the currently logged-in user's status was updated, refresh session
     if (user?.email.toLowerCase() === email.toLowerCase()) {

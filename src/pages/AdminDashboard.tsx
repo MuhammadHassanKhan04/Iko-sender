@@ -45,10 +45,10 @@ const AdminDashboard = () => {
         setIsLoading(false);
     };
 
-    const fetchRequests = () => {
+    const fetchRequests = async () => {
         setIsReqLoading(true);
         try {
-            const data = getRequests();
+            const data = await getRequests();
             setRequests(data);
         } catch (err) {
             console.error("Error fetching requests:", err);
@@ -84,14 +84,14 @@ const AdminDashboard = () => {
         setIsActionLoading(true);
         try {
             // 1. Mark request as approved
-            updateRequestStatus(req.id, "approved");
+            await updateRequestStatus(req.id, "approved");
 
             // 2. Update user status in localStorage
             const planCode = req.plan_name.toLowerCase();
             await updateUserStatus(req.user_email, "active", planCode, req.email_limit);
 
             toast.success(`Approved subscription for ${req.user_email}`);
-            fetchRequests();
+            await fetchRequests();
             await fetchUsers();
         } catch (err: any) {
             toast.error("Failed to approve: " + err.message);
@@ -104,16 +104,16 @@ const AdminDashboard = () => {
         setIsActionLoading(true);
         try {
             // 1. Mark request as rejected
-            updateRequestStatus(req.id, "rejected");
+            await updateRequestStatus(req.id, "rejected");
 
             // 2. Reset user status
-            const record = getUserByEmail(req.user_email);
+            const record = await getUserByEmail(req.user_email);
             if (record) {
-                upsertUser({ ...record, status: "none", plan: "none", email_limit: 0, emails_sent: 0 });
+                await upsertUser({ ...record, status: "none", plan: "none", email_limit: 0, emails_sent: 0 });
             }
 
             toast.success(`Rejected subscription for ${req.user_email}`);
-            fetchRequests();
+            await fetchRequests();
             await fetchUsers();
         } catch (err: any) {
             toast.error("Failed to reject: " + err.message);

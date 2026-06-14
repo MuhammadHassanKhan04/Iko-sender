@@ -283,12 +283,12 @@ const BulkMailSender = () => {
         });
         setEmailStatuses([...resultsAccumulator]);
 
-        // Sync quota count in localStorage
+        // Sync quota count in Supabase
         if (user?.email) {
           currentSentTotal += batchSuccessCount;
-          const record = getUserByEmail(user.email);
+          const record = await getUserByEmail(user.email);
           if (record) {
-            upsertUser({ ...record, emails_sent: currentSentTotal });
+            await upsertUser({ ...record, emails_sent: currentSentTotal });
           }
           await refreshUserProfile();
         }

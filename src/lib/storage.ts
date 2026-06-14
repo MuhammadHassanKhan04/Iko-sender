@@ -1,7 +1,9 @@
 // ================================================
-// IkoSender Local Storage + CSV Data Layer
-// Koi database nahi — sab kuch browser mein save
+// IkoSender Supabase Sync + Local Storage Cache
+// Synchronized cloud-based data layer
 // ================================================
+
+import { supabase } from "@/integrations/supabase/client";
 
 export type UserRecord = {
   id: string;
@@ -48,11 +50,27 @@ const DEFAULT_ADMIN: UserRecord = {
 };
 
 // ── Users ────────────────────────────────────────
-export function getUsers(): UserRecord[] {
+export async function getUsers(): Promise<UserRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from("users_db")
+      .select("*")
+      .order("created_at", { ascending: true });
+    
+    if (error) throw error;
+    if (data) {
+      const records = data as UserRecord[];
+      localStorage.setItem(USERS_KEY, JSON.stringify(records));
+      return records;
+    }
+  } catch (err) {
+    console.error("Supabase error fetching users, using local storage cache:", err);
+  }
+
+  // Local storage fallback
   try {
     const raw = localStorage.getItem(USERS_KEY);
     if (!raw) {
-      // First run: seed default admin
       const initial = [DEFAULT_ADMIN];
       localStorage.setItem(USERS_KEY, JSON.stringify(initial));
       return initial;
@@ -67,32 +85,111 @@ export function saveUsers(users: UserRecord[]): void {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
-export function getUserByEmail(email: string): UserRecord | null {
-  return getUsers().find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null;
-}
+export async function getUserByEmail(email: string): Promise<UserRecord | null> {
+  if (!email) return null;
+  try {
+    const { data, error } = await supabase
+      .from("users_db")
+      .select("*")
+      .eq("email", email.trim().toLowerCase())
+      .maybeSingle();
 
-export function upsertUser(updated: UserRecord): void {
-  const users = getUsers();
-  const idx = users.findIndex((u) => u.email.toLowerCase() === updated.email.toLowerCase());
-  if (idx >= 0) {
-    users[idx] = updated;
-  } else {
-    users.push(updated);
+    if (error) throw error;
+    if (data) return data as UserRecord;
+  } catch (err) {
+    console.error(`Supabase error getting user ${email}:`, err);
   }
-  saveUsers(users);
+
+  // Fallback to local storage cache
+  const cachedUsers = await getUsers();
+  return cachedUsers.find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
-export function deleteUserByEmail(email: string): void {
-  const users = getUsers().filter((u) => u.email.toLowerCase() !== email.toLowerCase());
-  saveUsers(users);
+export async function upsertUser(updated: UserRecord): Promise<void> {
+  try {
+    const cleanUser = {
+      email: updated.email.trim().toLowerCase(),
+      name: updated.name.trim(),
+      password: updated.password,
+      role: updated.role,
+      status: updated.status,
+      plan: updated.plan,
+      email_limit: updated.email_limit,
+      emails_sent: updated.emails_sent,
+    };
+    
+    const { error } = await supabase
+      .from("users_db")
+      .upsert(cleanUser, { onConflict: "email" });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error("Supabase error upserting user:", err);
+  }
+
+  // Sync to local cache
+  try {
+    const raw = localStorage.getItem(USERS_KEY);
+    const users: UserRecord[] = raw ? JSON.parse(raw) : [];
+    const idx = users.findIndex((u) => u.email.toLowerCase() === updated.email.toLowerCase());
+    if (idx >= 0) {
+      users[idx] = updated;
+    } else {
+      users.push(updated);
+    }
+    saveUsers(users);
+  } catch (err) {
+    console.error("Local storage update failed:", err);
+  }
+}
+
+export async function deleteUserByEmail(email: string): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from("users_db")
+      .delete()
+      .eq("email", email.trim().toLowerCase());
+
+    if (error) throw error;
+  } catch (err) {
+    console.error(`Supabase error deleting user ${email}:`, err);
+  }
+
+  // Local cache sync
+  try {
+    const raw = localStorage.getItem(USERS_KEY);
+    if (raw) {
+      const users: UserRecord[] = JSON.parse(raw);
+      const filtered = users.filter((u) => u.email.toLowerCase() !== email.toLowerCase());
+      saveUsers(filtered);
+    }
+  } catch (err) {
+    console.error("Local storage delete failed:", err);
+  }
 }
 
 // ── Subscription Requests ─────────────────────────
-export function getRequests(): SubscriptionRequest[] {
+export async function getRequests(): Promise<SubscriptionRequest[]> {
+  try {
+    const { data, error } = await supabase
+      .from("subscription_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    if (data) {
+      const records = data as SubscriptionRequest[];
+      localStorage.setItem(REQUESTS_KEY, JSON.stringify(records));
+      return records;
+    }
+  } catch (err) {
+    console.error("Supabase error fetching requests:", err);
+  }
+
+  // Local cache fallback
   try {
     const raw = localStorage.getItem(REQUESTS_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as SubscriptionRequest[];
+    return raw ? (JSON.parse(raw) as SubscriptionRequest[]) : [];
   } catch {
     return [];
   }
@@ -102,28 +199,71 @@ export function saveRequests(requests: SubscriptionRequest[]): void {
   localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests));
 }
 
-export function addRequest(req: Omit<SubscriptionRequest, "id" | "created_at">): SubscriptionRequest {
-  const requests = getRequests();
+export async function addRequest(req: Omit<SubscriptionRequest, "id" | "created_at">): Promise<SubscriptionRequest> {
   const newReq: SubscriptionRequest = {
     ...req,
     id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     created_at: new Date().toISOString(),
   };
-  requests.unshift(newReq);
-  saveRequests(requests);
+
+  try {
+    const { error } = await supabase
+      .from("subscription_requests")
+      .insert({
+        user_email: newReq.user_email,
+        plan_name: newReq.plan_name,
+        plan_price: newReq.plan_price,
+        email_limit: newReq.email_limit,
+        sender_email: newReq.sender_email,
+        transaction_id: newReq.transaction_id,
+        payment_slip_url: newReq.payment_slip_url,
+        status: newReq.status,
+      });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error("Supabase error adding request:", err);
+  }
+
+  // Update local cache
+  try {
+    await getRequests();
+  } catch (err) {
+    console.error("Local storage request save fallback:", err);
+  }
+
   return newReq;
 }
 
-export function updateRequestStatus(
+export async function updateRequestStatus(
   id: string,
   status: "approved" | "rejected"
-): void {
-  const requests = getRequests();
-  const idx = requests.findIndex((r) => r.id === id);
-  if (idx >= 0) {
-    requests[idx].status = status;
-    requests[idx].reviewed_at = new Date().toISOString();
-    saveRequests(requests);
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from("subscription_requests")
+      .update({ status, reviewed_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) throw error;
+  } catch (err) {
+    console.error(`Supabase error updating request status for request ${id}:`, err);
+  }
+
+  // Local cache update
+  try {
+    const raw = localStorage.getItem(REQUESTS_KEY);
+    if (raw) {
+      const requests: SubscriptionRequest[] = JSON.parse(raw);
+      const idx = requests.findIndex((r) => r.id === id);
+      if (idx >= 0) {
+        requests[idx].status = status;
+        requests[idx].reviewed_at = new Date().toISOString();
+        saveRequests(requests);
+      }
+    }
+  } catch (err) {
+    console.error("Local storage request status update failed:", err);
   }
 }
 
@@ -155,8 +295,9 @@ function downloadFile(filename: string, content: string, mime = "text/csv"): voi
   URL.revokeObjectURL(url);
 }
 
-export function exportUsersCSV(): void {
-  const users = getUsers().map((u) => ({
+export async function exportUsersCSV(): Promise<void> {
+  const users = await getUsers();
+  const exportData = users.map((u) => ({
     id: u.id,
     name: u.name,
     email: u.email,
@@ -166,13 +307,13 @@ export function exportUsersCSV(): void {
     email_limit: u.email_limit,
     emails_sent: u.emails_sent,
     created_at: u.created_at,
-    // password excluded from export for security
   }));
-  downloadFile(`iko_users_${new Date().toISOString().slice(0, 10)}.csv`, toCSV(users));
+  downloadFile(`iko_users_${new Date().toISOString().slice(0, 10)}.csv`, toCSV(exportData));
 }
 
-export function exportRequestsCSV(): void {
-  const requests = getRequests().map((r) => ({
+export async function exportRequestsCSV(): Promise<void> {
+  const requests = await getRequests();
+  const exportData = requests.map((r) => ({
     id: r.id,
     user_email: r.user_email,
     plan_name: r.plan_name,
@@ -183,11 +324,10 @@ export function exportRequestsCSV(): void {
     status: r.status,
     created_at: r.created_at,
     reviewed_at: r.reviewed_at ?? "",
-    // slip image excluded (too large for CSV)
   }));
   downloadFile(
     `iko_subscriptions_${new Date().toISOString().slice(0, 10)}.csv`,
-    toCSV(requests)
+    toCSV(exportData)
   );
 }
 
